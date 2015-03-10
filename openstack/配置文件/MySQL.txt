@@ -1,0 +1,2 @@
+mysqldump -uroot -proot --all-databases >/root/openstack.sql
+mysql -uroot -proot </root/openstack.sql

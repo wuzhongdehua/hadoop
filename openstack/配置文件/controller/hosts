@@ -1,0 +1,4 @@
+127.0.0.1       controller
+192.168.152.191 controller
+192.168.152.192 compute
+192.168.152.193 network

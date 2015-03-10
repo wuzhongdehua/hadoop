@@ -1,0 +1,5 @@
+[local-remote-base]
+name=local-remote-base
+baseurl=http://192.168.152.130/centos
+enabled=1
+gpgcheck=0

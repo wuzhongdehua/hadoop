@@ -1,0 +1,25 @@
+nova --os-tenant-name tenanta --os-username usera --os-password openstack --os-auth-url=http://192.168.152.191:5000/v2.0 boot --image c24403b0-0d50-4aad-94d1-1dba65b9ddd4 --flavor 1 --nic net-id=b01086aa-85e4-4ab8-abef-7205fd06a261  TenantA_VM1
+
+neutron --os-tenant-name tenanta --os-username usera --os-password openstack --os-auth-url=http://192.168.152.191:5000/v2.0 router-interface-add TenantA-R1 76746792-8285-48ce-a4b5-820cd1ddb746
+
+neutron --os-tenant-name tenanta --os-username usera --os-password openstack --os-auth-url=http://192.168.152.191:5000/v2.0 port-list  --device_id 17e073fe-a61d-46bb-92c1-7ebfb4eebce1
+
+neutron --os-tenant-name tenanta --os-username usera --os-password openstack --os-auth-url=http://192.168.152.191:5000/v2.0 floatingip-associate 27d4e6d8-8fc1-437f-b2fa-e2875d8a545b   2929aeac-a7ca-410c-9d84-8a7c153e43eb Associated floatingip 27d4e6d8-8fc1-437f-b2fa-e2875d8a545b
+
+nova --os-tenant-name tenanta --os-username usera --os-password openstack --os-auth-url=http://192.168.152.191:5000/v2.0 boot --image c24403b0-0d50-4aad-94d1-1dba65b9ddd4 --flavor 1 --nic net-id=b01086aa-85e4-4ab8-abef-7205fd06a261  TenantA_VM2
+
+neutron --os-tenant-name tenanta --os-username usera --os-password openstack --os-auth-url=http://192.168.152.191:5000/v2.0 floatingip-associate  a112c111-feec-4599-8767-17ffa46f1dfa 6733de8b-7fb3-41d8-b44c-c78a670d1e43 Associated floatingip a112c111-feec-4599-8767-17ffa46f1dfa
+
+nova --os-tenant-name tenantb --os-username userb --os-password openstack --os-auth-url=http://192.168.152.191:5000/v2.0 boot --image c24403b0-0d50-4aad-94d1-1dba65b9ddd4 --flavor 1 --nic net-id=2f12f6b5-b566-46ab-8b6c-6eea45ee48cf  TenantB_VM1
+
+neutron --os-tenant-name tenantb --os-username userb --os-password openstack --os-auth-url=http://192.168.152.191:5000/v2.0 router-interface-add TenantB-R1  ce0ed25f-1bf1-4c72-8b38-b7c3b6d4d062 Added interface to router TenantB-R1
+
+neutron --os-tenant-name tenantb --os-username userb --os-password openstack --os-auth-url=http://192.168.152.191:5000/v2.0 router-interface-add TenantB-R1  e9bbd6e6-76fd-4c63-9b94-c4df51702d5a
+
+neutron --os-tenant-name tenantb --os-username userb --os-password openstack --os-auth-url=http://192.168.152.191:5000/v2.0 floatingip-associate 295400a9-03ab-4df2-a7e1-f8eeadecd86b dd9b0ce2-a902-4008-b26f-d0f1b87afa60
+
+nova --os-tenant-name tenantb --os-username userb --os-password openstack --os-auth-url=http://192.168.152.191:5000/v2.0 boot --image c24403b0-0d50-4aad-94d1-1dba65b9ddd4 --flavor 1 --nic net-id=2f12f6b5-b566-46ab-8b6c-6eea45ee48cf  TenantB_VM2
+
+neutron --os-tenant-name tenantb --os-username userb --os-password openstack --os-auth-url=http://192.168.152.191:5000/v2.0 floatingip-associate 54c6c096-7dce-420a-9748-b2ec53026e41 56c036df-f1ee-4a18-ac20-08420cb9e555
+
+nova get-vnc-console t1 novnc

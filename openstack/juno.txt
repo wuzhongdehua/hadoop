@@ -1,0 +1,429 @@
+修改运行级别：
+systemctl set-default multi-user.target
+
+systemctl stop NetworkManager.service
+systemctl disable NetworkManager.service
+
+cp /etc/libvirt/qemu/networks/default.xml.bak /etc/libvirt/qemu/networks/default.xml
+
+
+vim /usr/lib/sysctl.d/00-system.conf
+net.ipv4.ip_forward = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-arptables = 1
+
+vim /etc/security/limits.conf
+*               soft     nproc           65535 
+*               hard    nproc           65535
+*               soft    nofile            65535
+*               hard    nofile           65535
+*               soft     core            ulimit 
+*               hard    core            ulimit
+
+16777736
+33554992
+50332216
+67109440
+
+mv /etc/libvirt/qemu/networks/default.xml /etc/libvirt/qemu/networks/default.xml.bak
+
+yum install ntp
+systemctl restart  ntpd.service
+
+hostnamectl --static set-hostname compute
+在controller：
+systemctl stop firewalld
+
+# systemctl enable ntpd.service
+# systemctl start ntpd.service
+
+yum remove rdo-release.noarch
+yum install http://dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-2.noarch.rpm
+yum install http://rdo.fedorapeople.org/openstack-juno/rdo-release-juno.rpm
+
+
+yum install openstack-selinux
+yum install mariadb mariadb-server MySQL-python
+
+
+[mysqld]
+bind-address = 10.0.0.11
+default-storage-engine = innodb
+innodb_file_per_table
+collation-server = utf8_general_ci
+init-connect = 'SET NAMES utf8'
+character-set-server = utf8
+
+
+# systemctl enable mariadb.service
+# systemctl start mariadb.servic
+
+# mysql_secure_installation
+
+rabbitmqctl change_password guest admin
+
+mysql -u root -p
+
+CREATE DATABASE keystone;
+
+GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' \
+  IDENTIFIED BY 'KEYSTONE_DBPASS';
+GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'%' \
+  IDENTIFIED BY 'KEYSTONE_DBPASS';
+
+openssl rand -hex 10
+d0bca7cf9780b797a7d1
+
+yum install openstack-keystone python-keystoneclient
+
+vim /etc/keystone/keystone.conf
+
+[DEFAULT]
+...
+verbose = True
+admin_token = d0bca7cf9780b797a7d1
+[database]
+...
+connection = mysql://keystone:KEYSTONE_DBPASS@controller/keystone
+[token]
+...
+provider = keystone.token.providers.uuid.Provider
+driver = keystone.token.persistence.backends.sql.Token
+
+# keystone-manage pki_setup --keystone-user keystone --keystone-group keystone
+# chown -R keystone:keystone /var/log/keystone
+# chown -R keystone:keystone /etc/keystone/ssl
+# chmod -R o-rwx /etc/keystone/ssl
+su -s /bin/sh -c "keystone-manage db_sync" keystone
+
+# systemctl enable openstack-keystone.service
+# systemctl start openstack-keystone.service
+
+# (crontab -l -u keystone 2>&1 | grep -q token_flush) || \
+  echo '@hourly /usr/bin/keystone-manage token_flush >/var/log/keystone/keystone-tokenflush.log 2>&1' \
+  >> /var/spool/cron/keystone
+
+
+export OS_SERVICE_TOKEN=d0bca7cf9780b797a7d1
+export OS_SERVICE_ENDPOINT=http://controller:35357/v2.0
+
+
+keystone tenant-create --name admin --description "Admin Tenant"
+keystone user-create --name admin --pass ADMIN_PASS --email EMAIL_ADDRESS
+keystone role-create --name admin
+keystone user-role-add --tenant admin --user admin --role admin
+keystone role-create --name _member_
+keystone user-role-add --tenant admin --user admin --role _member_
+
+keystone tenant-create --name demo --description "Demo Tenant"
+keystone user-create --name demo --pass DEMO_PASS --email EMAIL_ADDRESS
+keystone user-role-add --tenant demo --user demo --role _member_
+keystone tenant-create --name service --description "Service Tenant"
+
+keystone service-create --name keystone --type identity \
+  --description "OpenStack Identity"
+
+keystone endpoint-create \
+  --service-id $(keystone service-list | awk '/ identity / {print $2}') \
+  --publicurl http://controller:5000/v2.0 \
+  --internalurl http://controller:5000/v2.0 \
+  --adminurl http://controller:35357/v2.0 \
+  --region regionOne
+
+unset OS_SERVICE_TOKEN OS_SERVICE_ENDPOINT
+keystone --os-tenant-name admin --os-username admin --os-password ADMIN_PASS \
+  --os-auth-url http://controller:35357/v2.0 token-get
+
+keystone --os-tenant-name admin --os-username admin --os-password ADMIN_PASS \
+  --os-auth-url http://controller:35357/v2.0 tenant-list
+
+keystone --os-tenant-name admin --os-username admin --os-password ADMIN_PASS \
+  --os-auth-url http://controller:35357/v2.0 user-list
+
+keystone --os-tenant-name admin --os-username admin --os-password ADMIN_PASS \
+  --os-auth-url http://controller:35357/v2.0 role-list
+
+keystone --os-tenant-name demo --os-username demo --os-password DEMO_PASS \
+  --os-auth-url http://controller:35357/v2.0 token-get
+
+vim vim admin-openrc.sh
+export OS_TENANT_NAME=admin
+export OS_USERNAME=admin
+export OS_PASSWORD=ADMIN_PASS
+export OS_AUTH_URL=http://controller:35357/v2.0
+export PS1='[\u@\h \W(keystone_admin)]\$ '
+
+vim demo-openrc.sh
+export OS_TENANT_NAME=demo
+export OS_USERNAME=demo
+export OS_PASSWORD=DEMO_PASS
+export OS_AUTH_URL=http://controller:5000/v2.0
+export PS1='[\u@\h \W(keystone_admin)]\$ '
+
+source admin-openrc.sh
+
+mysql-uroot -p
+
+CREATE DATABASE glance;
+GRANT ALL PRIVILEGES ON glance.* TO 'glance'@'localhost' \
+  IDENTIFIED BY 'GLANCE_DBPASS';
+GRANT ALL PRIVILEGES ON glance.* TO 'glance'@'%' \
+  IDENTIFIED BY 'GLANCE_DBPASS';
+
+
+keystone user-create --name glance --pass GLANCE_PASS
+keystone user-role-add --user glance --tenant service --role admin
+keystone service-create --name glance --type image \
+  --description "OpenStack Image Service"
+
+keystone endpoint-create \
+  --service-id $(keystone service-list | awk '/ image / {print $2}') \
+  --publicurl http://controller:9292 \
+  --internalurl http://controller:9292 \
+  --adminurl http://controller:9292 \
+  --region regionOne
+
+yum install openstack-glance python-glanceclient
+
+vim  /etc/glance/glance-api.conf
+
+[database]
+...
+connection = mysql://glance:GLANCE_DBPASS@controller/glance
+[keystone_authtoken]
+...
+auth_uri = http://controller:5000/v2.0
+identity_uri = http://controller:35357
+admin_tenant_name = service
+admin_user = glance
+admin_password = GLANCE_PASS
+ 
+[paste_deploy]
+...
+flavor = keystone
+[glance_store]
+...
+default_store = file
+filesystem_store_datadir = /var/lib/glance/images/
+
+vim /etc/glance/glance-registry.conf 
+[database]
+...
+verbose = True
+connection = mysql://glance:GLANCE_DBPASS@controller/glance
+[keystone_authtoken]
+...
+auth_uri = http://controller:5000/v2.0
+identity_uri = http://controller:35357
+admin_tenant_name = service
+admin_user = glance
+admin_password = GLANCE_PASS
+ 
+[paste_deploy]
+...
+flavor = keystone
+
+
+
+su -s /bin/sh -c "glance-manage db_sync" glance
+
+# systemctl enable openstack-glance-api.service openstack-glance-registry.service
+# systemctl start openstack-glance-api.service openstack-glance-registry.service
+
+
+wget http://cdn.download.cirros-cloud.net/0.3.3/cirros-0.3.3-x86_64-disk.img
+glance image-create --name "cirros-0.3.3-x86_64" --file cirros-0.3.3-x86_64-disk.img \
+  --disk-format qcow2 --container-format bare --is-public True --progress
+
+glance image-list
+
+
+mysql -u root -p
+CREATE DATABASE nova;
+GRANT ALL PRIVILEGES ON nova.* TO 'nova'@'localhost' \
+  IDENTIFIED BY 'NOVA_DBPASS';
+GRANT ALL PRIVILEGES ON nova.* TO 'nova'@'%' \
+  IDENTIFIED BY 'NOVA_DBPASS';
+
+keystone user-create --name nova --pass NOVA_PASS
+keystone user-role-add --user nova --tenant service --role admin
+keystone service-create --name nova --type compute \
+  --description "OpenStack Compute"
+ keystone endpoint-create \
+  --service-id $(keystone service-list | awk '/ compute / {print $2}') \
+  --publicurl http://controller:8774/v2/%\(tenant_id\)s \
+  --internalurl http://controller:8774/v2/%\(tenant_id\)s \
+  --adminurl http://controller:8774/v2/%\(tenant_id\)s \
+  --region regionOne
+
+yum install openstack-nova-api openstack-nova-cert openstack-nova-conductor \
+  openstack-nova-console openstack-nova-novncproxy openstack-nova-scheduler \
+  python-novaclient
+
+vim /etc/nova/nova.conf
+[database]
+...
+connection = mysql://nova:NOVA_DBPASS@controller/nova
+[DEFAULT]
+...
+verbose = True
+rpc_backend = rabbit
+rabbit_host = controller
+rabbit_password = RABBIT_PASS
+auth_strategy = keystone
+my_ip = 192.168.152.191
+vncserver_listen = 192.168.152.191
+vncserver_proxyclient_address = 192.168.152.191
+[keystone_authtoken]
+...
+auth_uri = http://controller:5000/v2.0
+identity_uri = http://controller:35357
+admin_tenant_name = service
+admin_user = nova
+admin_password = NOVA_PASS
+[glance]
+...
+host = controller
+
+su -s /bin/sh -c "nova-manage db sync" nova
+
+# systemctl enable openstack-nova-api.service openstack-nova-cert.service \
+  openstack-nova-consoleauth.service openstack-nova-scheduler.service \
+  openstack-nova-conductor.service openstack-nova-novncproxy.service
+# systemctl start openstack-nova-api.service openstack-nova-cert.service \
+  openstack-nova-consoleauth.service openstack-nova-scheduler.service \
+  openstack-nova-conductor.service openstack-nova-novncproxy.service
+
+
+cinder：
+$ mysql -u root -p
+CREATE DATABASE cinder;
+GRANT ALL PRIVILEGES ON cinder.* TO 'cinder'@'localhost' \
+  IDENTIFIED BY 'CINDER_DBPASS';
+GRANT ALL PRIVILEGES ON cinder.* TO 'cinder'@'%' \
+  IDENTIFIED BY 'CINDER_DBPASS';
+keystone user-create --name cinder --pass CINDER_PASS
+keystone user-role-add --user cinder --tenant service --role admin
+keystone service-create --name cinder --type volume \
+  --description "OpenStack Block Storage"
+keystone service-create --name cinderv2 --type volumev2 \
+  --description "OpenStack Block Storage"
+keystone endpoint-create \
+  --service-id $(keystone service-list | awk '/ volume / {print $2}') \
+  --publicurl http://controller:8776/v1/%\(tenant_id\)s \
+  --internalurl http://controller:8776/v1/%\(tenant_id\)s \
+  --adminurl http://controller:8776/v1/%\(tenant_id\)s \
+  --region regionOne
+keystone endpoint-create \
+  --service-id $(keystone service-list | awk '/ volumev2 / {print $2}') \
+  --publicurl http://controller:8776/v2/%\(tenant_id\)s \
+  --internalurl http://controller:8776/v2/%\(tenant_id\)s \
+  --adminurl http://controller:8776/v2/%\(tenant_id\)s \
+  --region regionOne
+
+yum install openstack-cinder python-cinderclient python-oslo-db
+vim /etc/cinder/cinder.conf
+[DEFAULT]
+...
+rpc_backend = rabbit
+rabbit_host = controller
+rabbit_password = RABBIT_PASS
+auth_strategy = keystone
+my_ip = 192.168.152.191
+verbose = True
+[database]
+...
+connection = mysql://cinder:CINDER_DBPASS@controller/cinder
+[keystone_authtoken]
+...
+auth_uri = http://controller:5000/v2.0
+identity_uri = http://controller:35357
+admin_tenant_name = service
+admin_user = cinder
+admin_password = CINDER_PASS
+
+# su -s /bin/sh -c "cinder-manage db sync" cinder
+# systemctl enable openstack-cinder-api.service openstack-cinder-scheduler.service
+# systemctl start openstack-cinder-api.service openstack-cinder-scheduler.service
+
+swift:
+$ keystone user-create --name swift --pass SWIFT_PASS
+$ keystone user-role-add --user swift --tenant service --role admin
+keystone service-create --name swift --type object-store \
+  --description "OpenStack Object Storage"
+$ keystone endpoint-create \
+  --service-id $(keystone service-list | awk '/ object-store / {print $2}') \
+  --publicurl 'http://controller:8080/v1/AUTH_%(tenant_id)s' \
+  --internalurl 'http://controller:8080/v1/AUTH_%(tenant_id)s' \
+  --adminurl http://controller:8080 \
+  --region regionOne
+
+lvcreate --size 5G --name lvswift vgstorage
+mkfs.xfs -f -i size=1024 /dev/vgstorage/lvswift
+mkdir /mnt/sdb1
+mount /dev/vgstorage/lvswift   /mnt/sdb1
+vim /etc/fstab
+加入 /dev/vgstorage/lvswift   /mnt/sdb1            xfs     defaults        0 0
+mkdir /mnt/sdb1/1 /mnt/sdb1/2 /mnt/sdb1/3 /mnt/sdb1/4
+for x in {1..4}; do ln -s /mnt/sdb1/$x /srv/$x; done
+mkdir -p /etc/swift/object-server /etc/swift/container-server /etc/swift/account-server /srv/1/node/sdb1 /srv/2/node/sdb2 /srv/3/node/sdb3 /srv/4/node/sdb4 /var/run/swift
+chown -R swift:swift /etc/swift/ /srv/ /var/run/swift/ /mnt/sdb1
+
+yum install openstack-swift-proxy memcached python-swiftclient python-keystone-auth-token \
+openstack-swift-account openstack-swift-container openstack-swift-object xfsprogs xinetd
+
+openstack-config --set /etc/swift/proxy-server.conf filter:authtoken admin_tenant_name service
+openstack-config --set /etc/swift/proxy-server.conf filter:authtoken admin_user swift
+openstack-config --set /etc/swift/proxy-server.conf filter:authtoken admin_password SWIFT_PASS
+openstack-config --set /etc/swift/proxy-server.conf filter:authtoken auth_host 192.168.152.191
+openstack-config --set /etc/swift/proxy-server.conf filter:keystone operator_roles _member_,admin,swiftoperator
+
+
+for service in \
+openstack-swift-object openstack-swift-object-replicator openstack-swift-object-updater openstack-swift-object-auditor \
+openstack-swift-container openstack-swift-container-replicator openstack-swift-container-updater openstack-swift-container-auditor \
+openstack-swift-account openstack-swift-account-replicator openstack-swift-account-reaper openstack-swift-account-auditor; do \
+systemctl enable $service.service; systemctl start $service.service; done
+
+
+
+dashborad:
+yum install openstack-dashboard httpd mod_wsgi memcached python-memcached
+
+
+compute节点：
+vim /etc/nova/nova.conf
+[DEFAULT]
+...
+verbose = True
+auth_strategy = keystone
+rpc_backend = rabbit
+rabbit_host = controller
+my_ip = compute
+vnc_enabled = True
+vncserver_listen = 0.0.0.0
+vncserver_proxyclient_address = compute
+novncproxy_base_url = http://controller:6080/vnc_auto.html
+[keystone_authtoken]
+...
+auth_uri = http://controller:5000/v2.0
+identity_uri = http://controller:35357
+admin_tenant_name = service
+admin_user = nova
+admin_password = NOVA_PASS
+rabbit_password = RABBIT_PASS
+[glance]
+...
+host = controller
+[libvirt]
+...
+virt_type = qemu
+[database]
+...
+connection = mysql://nova:NOVA_DBPASS@controller/nova
+
+
+# systemctl enable libvirtd.service openstack-nova-compute.service
+# systemctl start libvirtd.service
+# systemctl start openstack-nova-compute.service

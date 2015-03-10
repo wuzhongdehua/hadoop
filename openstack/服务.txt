@@ -1,0 +1,27 @@
+controller:
+systemctl restart rabbitmq-server.service lvm2-lvmetad.service memcached.service \ 
+ openstack-keystone.service \
+ openstack-glance-api.service openstack-glance-registry.service \
+ openstack-nova-api.service openstack-nova-cert.service openstack-nova-consoleauth.service openstack-nova-scheduler.service openstack-nova-conductor.service openstack-nova-novncproxy.service \
+ neutron-server.service \
+ openstack-cinder-api.service openstack-cinder-scheduler.service openstack-cinder-volume.service target.service \
+ httpd.service
+
+
+compute:
+systemctl restart libvirtd.service \
+  openstack-nova-compute.service \
+  openvswitch.service \
+  neutron-openvswitch-agent.service \
+  openstack-ceilometer-compute.service
+
+
+network:
+systemctl restart openvswitch.service neutron-openvswitch-agent.service neutron-l3-agent.service neutron-dhcp-agent.service neutron-metadata-agent.service
+
+other:
+systemctl restart mongod.service \
+  openstack-heat-api.service openstack-heat-api-cfn.service openstack-heat-engine.service \
+  openstack-ceilometer-api.service openstack-ceilometer-notification.service openstack-ceilometer-central.service openstack-ceilometer-collector.service openstack-ceilometer-alarm-evaluator.service openstack-ceilometer-alarm-notifier.service \
+  openstack-trove-api.service openstack-trove-taskmanager.service openstack-trove-conductor.service \
+  openstack-sahara-all
