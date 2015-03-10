@@ -1,5 +1,0 @@
-[openstack-local-remote]
-name=openstack-local-remote
-baseurl=http://192.168.152.130/openstack/icehouse-centos6/
-enabled=1
-gpgcheck=0
