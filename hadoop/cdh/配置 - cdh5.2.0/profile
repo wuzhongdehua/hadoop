@@ -1,0 +1,152 @@
+# /etc/profile
+
+# System wide environment and startup programs, for login setup
+# Functions and aliases go in /etc/bashrc
+
+# It's NOT a good idea to change this file unless you know what you
+# are doing. It's much better to create a custom.sh shell script in
+# /etc/profile.d/ to make custom changes to your environment, as this
+# will prevent the need for merging in future updates.
+
+pathmunge () {
+    case ":${PATH}:" in
+        *:"$1":*)
+            ;;
+        *)
+            if [ "$2" = "after" ] ; then
+                PATH=$PATH:$1
+            else
+                PATH=$1:$PATH
+            fi
+    esac
+}
+
+
+if [ -x /usr/bin/id ]; then
+    if [ -z "$EUID" ]; then
+        # ksh workaround
+        EUID=`id -u`
+        UID=`id -ru`
+    fi
+    USER="`id -un`"
+    LOGNAME=$USER
+    MAIL="/var/spool/mail/$USER"
+fi
+
+# Path manipulation
+if [ "$EUID" = "0" ]; then
+    pathmunge /sbin
+    pathmunge /usr/sbin
+    pathmunge /usr/local/sbin
+else
+    pathmunge /usr/local/sbin after
+    pathmunge /usr/sbin after
+    pathmunge /sbin after
+fi
+
+HOSTNAME=`/bin/hostname 2>/dev/null`
+HISTSIZE=1000
+if [ "$HISTCONTROL" = "ignorespace" ] ; then
+    export HISTCONTROL=ignoreboth
+else
+    export HISTCONTROL=ignoredups
+fi
+
+export PATH USER LOGNAME MAIL HOSTNAME HISTSIZE HISTCONTROL
+
+# By default, we want umask to get set. This sets it for login shell
+# Current threshold for system reserved uid/gids is 200
+# You could check uidgid reservation validity in
+# /usr/share/doc/setup-*/uidgid file
+if [ $UID -gt 199 ] && [ "`id -gn`" = "`id -un`" ]; then
+    umask 002
+else
+    umask 022
+fi
+
+for i in /etc/profile.d/*.sh ; do
+    if [ -r "$i" ]; then
+        if [ "${-#*i}" != "$-" ]; then
+            . "$i"
+        else
+            . "$i" >/dev/null 2>&1
+        fi
+    fi
+done
+
+unset i
+unset -f pathmunge
+
+export JAVA_HOME=/usr/cao/jdk1.7.0_45
+export PATH=$JAVA_HOME/bin:$PATH
+export JAVA_LIBRARY_PATH=/usr/cao/hadoop/hadoop-2.5.0-cdh5.2.0/lib/native
+export SCALA_HOME=/usr/cao/hadoop/scala-2.10.3
+export PATH=$SCALA_HOME/bin:$PATH
+export CLASSPATH=.:$JAVA_HOME/lib/dt.jar:$JAVA_HOME/lib/tools.jar
+export HADOOP_HOME=/usr/cao/hadoop/hadoop-2.5.0-cdh5.2.0
+export PATH=$HADOOP_HOME/bin:$PATH
+export PATH=$HADOOP_HOME/sbin:$PATH
+export HADOOP_COMMON_HOME=$HADOOP_HOME
+export HADOOP_COMMON_LIB=$HADOOP_HOME/share/hadoop/common/lib
+export HADOOP_COMMON_COMMON_LIB=$HADOOP_HOME/share/hadoop/common
+export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+export HADOOP_HDFS_HOME=$HADOOP_HOME
+export HADOOP_MAPRED_HOME=$HADOOP_HOME
+export YARN_HOME=$HADOOP_HOME
+export YARN_CONF_DIR=$HADOOP_HOME/etc/hadoop
+export HADOOP_PREFIX=$HADOOP_HOME
+export HADOOP_COMMON_LIB_NATIVE_DIR=$HADOOP_HOME/lib/native
+export HADOOP_OPTS="-Djava.library.path=$HADOOP_HOME/lib"
+export HBASE_HOME=/usr/cao/hadoop/hbase-0.98.6-cdh5.2.0
+export PATH=$HBASE_HOME/bin:$PATH
+export HIVE_HOME=/usr/cao/hadoop/hive-0.13.1-cdh5.2.0
+export PATH=$HIVE_HOME/bin:$PATH
+export HIVE_CONF_DIR=$HIVE_HOME/conf
+export HIVE_LIB=$HIVE_HOME/lib
+export CLASSPATH=$CLASSPATH:$HIVE_LIB:$HADOOP_COMMON_LIB:$HADOOP_COMMON_COMMON_LIB
+export PATH=$HIVE_HOME/bin/:$PATH
+export ZOOKEEPER_INSTALL=/usr/cao/hadoop/zookeeper-3.4.5-cdh5.2.0
+export PATH=$PATH:$ZOOKEEPER_INSTALL/bin
+export PIG_INSTALL=/usr/cao/hadoop/pig-0.12.0-cdh5.2.0
+export PATH=$PATH:$PIG_INSTALL/bin
+export PIG_HADOOP_VERSION=25
+export PIG_CLASSPATH=$HADOOP_HOME/conf
+export SPARK_HOME=/usr/cao/hadoop/spark-1.1.0-cdh5.2.0
+export PATH=$PATH:$SPARK_HOME/bin
+export SQOOP_HOME=/usr/cao/hadoop/sqoop-1.4.5-cdh5.2.0
+export PATH=$PATH:$SQOOP_HOME/bin
+export SQOOP2_HOME=/usr/cao/hadoop/sqoop2-1.99.3-cdh5.2.0
+export PATH=$PATH:$SQOOP2_HOME/bin
+export LOGDIR=$SQOOP_HOME2/logs/
+#export CATALINA_BASE=$SQOOP2_HOME/server
+export LOGDIR=$SQOOP2_HOME/logs/
+export MAHOUT_HOME=/usr/cao/hadoop/mahout-0.9-cdh5.2.0
+export PATH=$PATH:$MAHOUT_HOME/bin
+export FLUME_HOME=/usr/cao/hadoop/apache-flume-1.5.0-cdh5.2.0-bin
+export PATH=$PATH:$FLUME_HOME/bin
+export STORM_HOME=/usr/cao/hadoop/apache-storm-0.9.2-incubating
+export PATH=$PATH:$STORM_HOME/bin
+export OOZIE_HOME=/usr/cao/hadoop/oozie-4.0.0-cdh5.2.0
+export PATH=$PATH:$OOZIE_HOME/bin
+export OOZIE_CONFIG=$OOZIE_HOME/conf
+export OOZIE_URL="http://master.hadoop.com:11000/oozie"
+
+export KAFKA_HOME=/usr/cao/hadoop/kafka_2.10-0.8.1.1
+export PATH=$PATH:$KAFKA_HOME/bin
+
+export MAVEN_HOME=/usr/cao/apache-maven-3.2.3
+export PATH=$PATH:$MAVEN_HOME/bin
+
+export SOLR_HOME=/usr/cao/hadoop/hbase-solr-1.5-cdh5.2.0
+export HBASE_INDEXER_HOME=/usr/cao/hadoop/hbase-solr-1.5-cdh5.2.0
+export NAMENODE_CONNECT='hdfs://mycluster1'
+export ZOOKEEPER_HOST='master.hadoop.com,slaver1.hadoop.com,slaver2.hadoop.com'
+export ZOOKEEPER_PORT=2181
+export ZOOKEEPER_ROOT=/solr
+export PATH=$PATH:$SOLR_HOME/bin
+
+#export STORM_YARN_HOME=/usr/cao/hadoop/storm-yarn
+#export PATH=$PATH:$STORM_YARN_HOME/bin
+#export STORM_WORK=/usr/cao/hadoop/storm/storm-0.9.0-wip21
+#export STORM_HOME=$STORM_WORK
+#export PATH=$PATH:$STORM_WORK/storm-yarn-master/bin:$STORM_WORK/storm-0.9.0-wip21/bin

@@ -1,0 +1,237 @@
+Hdfs文件演示
+///////////////////////////////////////////////
+///////////      代码        //////////////////
+///////////////////////////////////////////////
+package week5
+
+import org.apache.spark.SparkConf
+import org.apache.spark.streaming.{Seconds, StreamingContext}
+import org.apache.spark.streaming.StreamingContext._
+
+
+object HdfsWordCount {
+  def main(args: Array[String]) {
+    val sparkConf = new SparkConf().setAppName("HdfsWordCount").setMaster("local[2]")
+    // Create the context
+    val ssc = new StreamingContext(sparkConf, Seconds(20))
+
+    val lines = ssc.textFileStream("/home/mmicky/temp/")
+    val words = lines.flatMap(_.split(" "))
+    val wordCounts = words.map(x => (x, 1)).reduceByKey(_ + _)
+    wordCounts.print()
+    ssc.start()
+    ssc.awaitTermination()
+  }
+}
+
+*************************************************************************
+*************************************************************************
+*************************************************************************
+销售模拟器：参数1：读入的文件；参数2：端口；参数3：发送时间间隔ms
+打包的时候注意，可以将应用的jar包打进去；
+也可以修改classpath，注意每个jar包用空格隔开，如：
+/app/scala2104/lib/scala-swing.jar /app/scala2104/lib/scala-library.jar /app/scala2104/lib/scala-actors.jar
+测试：
+java -cp week5.jar week5.SaleSimulation /home/mmicky/data/spark/people.txt 9999 1000
+
+
+///////////////////////////////////////////////
+///////////      代码        //////////////////
+///////////////////////////////////////////////
+package week5
+
+import java.io.{PrintWriter}
+import java.net.ServerSocket
+import scala.io.Source
+
+object SaleSimulation {
+  def index(length: Int) = {
+    import java.util.Random
+    val rdm = new Random
+
+    rdm.nextInt(length)
+  }
+
+  def main(args: Array[String]) {
+    if (args.length != 3) {
+      System.err.println("Usage: <filename> <port> <millisecond>")
+      System.exit(1)
+    }
+
+    val filename = args(0)
+    val lines = Source.fromFile(filename).getLines.toList
+    val filerow = lines.length
+
+    val listener = new ServerSocket(args(1).toInt)
+    while (true) {
+      val socket = listener.accept()
+      new Thread() {
+        override def run = {
+          println("Got client connected from: " + socket.getInetAddress)
+          val out = new PrintWriter(socket.getOutputStream(), true)
+          while (true) {
+            Thread.sleep(args(2).toLong)
+            val content = lines(index(filerow))
+            println(content)
+            out.write(content + '\n')
+            out.flush()
+          }
+          socket.close()
+        }
+      }.start()
+    }
+  }
+}
+
+*************************************************************************
+*************************************************************************
+*************************************************************************
+
+网络数据演示
+///////////////////////////////////////////////
+///////////      代码        //////////////////
+///////////////////////////////////////////////
+package week5
+
+import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.streaming.{Milliseconds, Seconds, StreamingContext}
+import org.apache.spark.streaming.StreamingContext._
+import org.apache.spark.storage.StorageLevel
+
+object NetworkWordCount {
+  def main(args: Array[String]) {
+    val conf = new SparkConf().setAppName("NetworkWordCount").setMaster("local[2]")
+    val sc = new SparkContext(conf)
+    val ssc = new StreamingContext(sc, Seconds(5))
+
+    val lines = ssc.socketTextStream(args(0), args(1).toInt, StorageLevel.MEMORY_AND_DISK_SER)
+    val words = lines.flatMap(_.split(","))
+    val wordCounts = words.map(x => (x, 1)).reduceByKey(_ + _)
+
+    wordCounts.print()
+    ssc.start()
+    ssc.awaitTermination()
+  }
+}
+
+
+*************************************************************************
+*************************************************************************
+*************************************************************************
+
+stateful演示
+///////////////////////////////////////////////
+///////////      代码        //////////////////
+///////////////////////////////////////////////
+package week5
+
+import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.streaming.{Seconds, StreamingContext}
+import org.apache.spark.streaming.StreamingContext._
+
+object StatefulWordCount {
+  def main(args: Array[String]) {
+
+    val updateFunc = (values: Seq[Int], state: Option[Int]) => {
+      val currentCount = values.foldLeft(0)(_ + _)
+      val previousCount = state.getOrElse(0)
+      Some(currentCount + previousCount)
+    }
+
+    val conf = new SparkConf().setAppName("StatefulWordCount").setMaster("local[2]")
+    val sc = new SparkContext(conf)
+
+    //创建StreamingContext
+    val ssc = new StreamingContext(sc, Seconds(5))
+    ssc.checkpoint(".")
+
+    //获取数据
+    val lines = ssc.socketTextStream(args(0), args(1).toInt)
+    val words = lines.flatMap(_.split(","))
+    val wordCounts = words.map(x => (x, 1))
+
+    //使用updateStateByKey来更新状态
+    val stateDstream = wordCounts.updateStateByKey[Int](updateFunc)
+    stateDstream.print()
+    ssc.start()
+    ssc.awaitTermination()
+  }
+}
+
+
+
+*************************************************************************
+*************************************************************************
+*************************************************************************
+
+window演示
+///////////////////////////////////////////////
+///////////      代码        //////////////////
+///////////////////////////////////////////////
+package week5
+
+import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.storage.StorageLevel
+import org.apache.spark.streaming._
+import org.apache.spark.streaming.StreamingContext._
+
+object WindowWordCount {
+  def main(args: Array[String]) {
+
+    val conf = new SparkConf().setAppName("WindowWordCount").setMaster("local[2]")
+    val sc = new SparkContext(conf)
+
+    //创建StreamingContext
+    val ssc = new StreamingContext(sc, Seconds(5))
+    ssc.checkpoint(".")
+
+    // //获取数据
+    val lines = ssc.socketTextStream(args(0), args(1).toInt, StorageLevel.MEMORY_ONLY_SER)
+    val words = lines.flatMap(_.split(","))
+
+    //windows操作
+    val wordCounts = words.map(x => (x , 1)).reduceByKeyAndWindow((a:Int,b:Int) => (a + b), Seconds(args(2).toInt), Seconds(args(3).toInt))
+    //val wordCounts = words.map(x => (x , 1)).reduceByKeyAndWindow(_+_, _-_,Seconds(args(2).toInt), Seconds(args(3).toInt))
+
+    wordCounts.print()
+    ssc.start()
+    ssc.awaitTermination()
+  }
+}
+
+
+*************************************************************************
+*************************************************************************
+*************************************************************************
+
+sale数据演示
+//qryStockDetail.txt文件定义了订单明细
+//订单号，行号，货品，数量，单价，金额
+使用方法：
+java -cp week5.jar week5.SaleSimulation /home/mmicky/data/spark/saledata/qryStockDetail.txt 9999 100
+///////////////////////////////////////////////
+///////////      代码        //////////////////
+///////////////////////////////////////////////
+package week5
+
+import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.streaming.{Milliseconds, Seconds, StreamingContext}
+import org.apache.spark.streaming.StreamingContext._
+import org.apache.spark.storage.StorageLevel
+
+object SaleAmount {
+  def main(args: Array[String]) {
+    val conf = new SparkConf().setAppName("SaleAmount").setMaster("local[2]")
+    val sc = new SparkContext(conf)
+    val ssc = new StreamingContext(sc, Seconds(5))
+
+    val lines = ssc.socketTextStream(args(0), args(1).toInt, StorageLevel.MEMORY_AND_DISK_SER)
+    val words = lines.map(_.split(",")).filter(_.length == 6)
+    val wordCounts = words.map(x=>(1, x(5).toDouble)).reduceByKey(_ + _)
+
+    wordCounts.print()
+    ssc.start()
+    ssc.awaitTermination()
+  }
+}
+

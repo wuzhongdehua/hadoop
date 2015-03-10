@@ -1,0 +1,134 @@
+//启动spark-shell
+bin/spark-shell --master spark://hadoop1:7077 --executor-memory 3g
+
+//RDD演示
+val sqlContext=	new org.apache.spark.sql.SQLContext(sc)
+import sqlContext._
+
+case class Person(name:String,age:Int)
+val people=sc.textFile("hdfs://hadoop1:8000/dataguru/week4/people.txt").map(_.split(",")).map(p=>Person(p(0),p(1).trim.toInt))
+people.registerAsTable("people")
+
+val teenagers = sqlContext.sql("SELECT name FROM people WHERE age >= 13 AND age <= 19")
+teenagers.map(t => "Name: " + t(0)).collect().foreach(println)
+
+//DSL演示
+val teenagers_dsl = people.where('age >= 10).where('age <= 19).select('name)
+teenagers_dsl.map(t => "Name: " + t(0)).collect().foreach(println)
+
+//parquet演示
+//import sqlContext.createSchemaRDD
+people.saveAsParquetFile("hdfs://hadoop1:8000/dataguru/week4/people.parquet")
+
+val parquetFile = sqlContext.parquetFile("hdfs://hadoop1:8000/dataguru/week4/people.parquet")
+parquetFile.registerAsTable("parquetFile")
+val teenagers = sqlContext.sql("SELECT name FROM parquetFile WHERE age >= 13 AND age <= 19")
+teenagers.map(t => "Name: " + t(0)).collect().foreach(println)
+
+//join演示
+val jointbls = sqlContext.sql("SELECT people.name FROM people join parquetFile where people.name=parquetFile.name")
+jointbls.map(t => "Name: " + t(0)).collect().foreach(println)
+
+//另一个parquet
+//val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+val wikiData = sqlContext.parquetFile("hdfs://hadoop1:8000/dataguru/week4/wiki_parquet")
+wikiData.count()
+wikiData.registerAsTable("wikiData")
+val countResult = sqlContext.sql("SELECT COUNT(*) FROM wikiData").collect()
+sqlContext.sql("SELECT username, COUNT(*) AS cnt FROM wikiData WHERE username <> '' GROUP BY username ORDER BY cnt DESC LIMIT 10").collect().foreach(println)
+
+
+//退出重启spark-shell
+
+***************************************************************
+***************************************************************
+***************************************************************
+//启动hive metasotre service
+nohup bin/hive --service metastore > metastore.log 2>&1 &
+注意：如果要使用hive，需要将hive-site.xml文件复制到conf/下
+//启动spark-shell
+bin/spark-shell --master spark://hadoop1:7077 --executor-memory 3g
+
+//hive演示
+//org.apache.spark.sql.hive.HiveContext(sc)出错，请更换支持hive的spark版本
+val hiveContext = new org.apache.spark.sql.hive.HiveContext(sc)
+
+//hiveContext.hql("CREATE TABLE IF NOT EXISTS src (key INT, value STRING)")
+//hiveContext.hql("LOAD DATA LOCAL INPATH 'examples/src/main/resources/kv1.txt' INTO TABLE src")
+//hiveContext.hql("FROM src SELECT key, value").collect().foreach(println)
+
+***************************************************************
+***************************************************************
+***************************************************************
+sogouQ数据演示
+//查询有多少行数据
+hiveContext.hql("Select count(*) from SOGOUQ1").collect().foreach(println)
+
+//显示前10行数据
+hiveContext.hql("select * from SOGOUQ1 limit 10").collect().foreach(println)
+
+//session查询次数排行榜
+hiveContext.hql("select WEBSESSION,count(WEBSESSION) as cw from SOGOUQ1 group by WEBSESSION order by cw desc limit 10").collect().foreach(println)
+
+
+***************************************************************
+***************************************************************
+***************************************************************
+销售数据演示
+hiveContext.hql("use saledata").collect().foreach(println)
+hiveContext.hql("show tables").collect().foreach(println)
+
+//所有订单中总销售额
+hiveContext.hql("select sum(tblStockDetail.amount) from tblStock join tblStockDetail on tblStock.ordernumber=tblStockDetail.ordernumber").collect().foreach(println)
+
+hiveContext.hql("select sum(b.amount) from tblStock a join tblStockDetail b on a.ordernumber=b.ordernumber").collect().foreach(println)
+68100782
+
+hiveContext.hql("select sum(tblStockDetail.amount) from tblStock join tblStockDetail on tblStock.ordernumber=tblStockDetail.ordernumber join tbldate on tblstock.dateid=tbldate.dateid").collect().foreach(println)
+
+hiveContext.hql("select sum(b.amount) from tblStock a join tblStockDetail b on a.ordernumber=b.ordernumber join tbldate c on a.dateid=c.dateid").collect().foreach(println)
+68099079
+
+
+//所有订单中每年的销售单数、销售总额
+hiveContext.hql("select c.theyear,count(distinct a.ordernumber),sum(b.amount) from tblStock a join tblStockDetail b on a.ordernumber=b.ordernumber join tbldate c on a.dateid=c.dateid group by c.theyear order by c.theyear").collect().foreach(println)
+
+[2004,1094,3265696]
+[2005,3828,13247234]
+[2006,3772,13670416]
+[2007,4885,16711974]
+[2008,4861,14670698]
+[2009,2619,6322137]
+[2010,94,210924]
+
+
+//所有订单中每年最畅销货品
+第一步：
+hiveContext.hql("select c.theyear,b.itemid,sum(b.amount) as sumofamount from tblStock a join tblStockDetail b on a.ordernumber=b.ordernumber join tbldate c on a.dateid=c.dateid group by c.theyear,b.itemid").collect().foreach(println)
+
+第二步:
+hiveContext.hql("select d.theyear,max(d.sumofamount) as maxofamount from (select c.theyear,b.itemid,sum(b.amount) as sumofamount from tblStock a join tblStockDetail b on a.ordernumber=b.ordernumber join tbldate c on a.dateid=c.dateid group by c.theyear,b.itemid) d group by d.theyear").collect().foreach(println)
+
+第三步：
+hiveContext.hql("select distinct  e.theyear,e.itemid,f.maxofamount from (select c.theyear,b.itemid,sum(b.amount) as sumofamount from tblStock a join tblStockDetail b on a.ordernumber=b.ordernumber join tbldate c on a.dateid=c.dateid group by c.theyear,b.itemid) e join (select d.theyear,max(d.sumofamount) as maxofamount from (select c.theyear,b.itemid,sum(b.amount) as sumofamount from tblStock a join tblStockDetail b on a.ordernumber=b.ordernumber join tbldate c on a.dateid=c.dateid group by c.theyear,b.itemid) d group by d.theyear) f on (e.theyear=f.theyear and e.sumofamount=f.maxofamount) order by e.theyear").collect().foreach(println)
+
+[2004,JY424420810101,53374]
+[2005,24124118880102,56569]
+[2006,JY425468460101,113684]
+[2007,JY425468460101,70226]
+[2008,E2628204040101,97981]
+[2009,YL327439080102,30029]
+[2010,SQ429425090101,4494]
+
+
+
+
+
+
+
+
+
+
+  
+ 
+  

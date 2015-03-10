@@ -1,0 +1,149 @@
+//日志处理演示
+//http://download.labs.sogou.com/dl/q.html 完整版(2GB)：gz格式
+//访问时间\t用户ID\t[查询词]\t该URL在返回结果中的排名\t用户点击的顺序号\t用户点击的URL
+//SogouQ1.txt、SogouQ2.txt、SogouQ3.txt分别是用head -n 或者tail -n 从SogouQ数据日志文件中截取
+
+CREATE EXTERNAL TABLE SOGOUQ1(DT STRING,WEBSESSION STRING,WORD STRING,S_SEQ INT,C_SEQ INT,WEBSITE STRING) ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' LINES TERMINATED BY '\n' STORED AS TEXTFILE LOCATION '/dataguru/data/SogouQ1';
+
+//查询有多少行数据
+Select count(*) from SOGOUQ1;
+
+//显示前10行数据
+select * from SOGOUQ1 limit 10;
+
+//搜索结果排名第1，但是点击次序排在第2的数据有多少?
+select count(*) from SOGOUQ1 where S_SEQ=1 and C_SEQ=2;
+
+//搜索用户点击的URL含baidu的数据有多少?
+select count(*) from SOGOUQ1 where WEBSITE like '%baidu%';
+
+//搜索结果排名第1，但是点击次序排在第2,URL含baidu的数据有多少?
+select count(*) from SOGOUQ1 where S_SEQ=1 and C_SEQ=2 and WEBSITE like '%baidu%';
+
+//session查询次数排行榜
+select WEBSESSION,count(WEBSESSION) as cw from SOGOUQ1 group by WEBSESSION order by cw desc limit 10;
+
+//创建内部表并加载数据，**原数据被移动到默认路径
+CREATE TABLE SOGOUQ2(DT STRING,WEBSESSION STRING,WORD STRING,S_SEQ INT,C_SEQ INT,WEBSITE STRING) ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' LINES TERMINATED BY '\n' ;
+
+LOAD DATA INPATH '/dataguru/data/SogouQ2.txt' INTO TABLE SOGOUQ2;
+
+//查询有多少行数据
+Select count(*) from SOGOUQ2;
+
+***************************************************************
+***************************************************************
+***************************************************************
+CREATE DATABASE SALEDATA;
+
+use SALEDATA;
+
+//qryTheDate.txt文件定义了日期的分类，将每天分别赋予所属的月份、星期、季度等属性
+//日期，年月，年，月，日，周几，第几周，季度，旬、半月
+CREATE TABLE tblDate(dateID string,theyearmonth string,theyear string,themonth string,thedate string,theweek string,theweeks string,thequot string,thetenday string,thehalfmonth string) ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' LINES TERMINATED BY '\n' ;
+
+//qrytblStock.txt文件定义了订单表头
+//订单号，交易位置，交易日期
+CREATE TABLE tblStock(ordernumber STRING,locationid STRING,dateID string) ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' LINES TERMINATED BY '\n' ;
+
+//qryStockDetail.txt文件定义了订单明细
+//订单号，行号，货品，数量，金额
+CREATE TABLE tblStockDetail(ordernumber STRING,rownum int,itemid STRING,qty INT,price int ,amount int) ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' LINES TERMINATED BY '\n' ;
+
+LOAD DATA LOCAL INPATH '/home/mmicky/data/spark/saledata/qryTheDate.txt' INTO TABLE tblDate;
+
+LOAD DATA LOCAL INPATH '/home/mmicky/data/spark/saledata/qrytblStock.txt' INTO TABLE tblStock;
+
+LOAD DATA LOCAL INPATH '/home/mmicky/data/spark/saledata/qryStockDetail.txt' INTO TABLE tblStockDetail;
+
+
+//异常数据
+select sum(b.amount) from tblStock a,tblStockDetail b where a.ordernumber=b.ordernumber;
+68100782
+
+select sum(b.amount) from tblStock a,tblStockDetail b,tbldate c where a.ordernumber=b.ordernumber and a.dateid=c.dateid;
+68099079
+
+
+select a.* from tblstock a where a.dateid not in (select dateid from tblDate);
+//select * from tblstock  where tblstock.dateid not in (select dateid from tblDate);
+
+
+//所有订单中每年的销售单数、销售总额
+select c.theyear,count(distinct a.ordernumber),sum(b.amount) from tblStock a,tblStockDetail b,tbldate c where a.ordernumber=b.ordernumber and a.dateid=c.dateid group by c.theyear order by c.theyear;
+
+2004	1094	3265696
+2005	3828	13247234
+2006	3772	13670416
+2007	4885	16711974
+2008	4861	14670698
+2009	2619	6322137
+2010	94	210924
+
+
+//所有订单中季度销售额前10位
+select c.theyear,c.thequot,sum(b.amount) as sumofamount from tblStock a,tblStockDetail b,tbldate c where a.ordernumber=b.ordernumber and a.dateid=c.dateid group by c.theyear,c.thequot order by sumofamount desc limit 10;
+
+2008	1	5252819
+2007	4	4613093
+2007	1	4446088
+2006	1	3916638
+2008	2	3886470
+2007	3	3870558
+2007	2	3782235
+2006	4	3691314
+2005	1	3592007
+2005	3	3304243
+
+
+//列出销售金额在100000以上的单据
+select a.ordernumber,sum(b.amount) as sumofamount from tblStock a,tblStockDetail b where a.ordernumber=b.ordernumber group by a.ordernumber having sumofamount>100000;
+
+HMJSL00009024	119058
+HMJSL00009958	159126
+
+
+//所有订单每年最大金额订单的销售额
+第一步：
+select a.dateid,a.ordernumber,sum(b.amount) as sumofamount from tblStock a,tblStockDetail b where a.ordernumber=b.ordernumber group by a.dateid,a.ordernumber 
+第二步:
+select c.theyear,max(d.sumofamount) from tbldate c,(select a.dateid,a.ordernumber,sum(b.amount) as sumofamount from tblStock a,tblStockDetail b where a.ordernumber=b.ordernumber group by a.dateid,a.ordernumber) d  where c.dateid=d.dateid group by c.theyear sort by c.theyear;
+
+2004	23612
+2005	38180
+2006	36124
+2007	159126
+2008	55828
+2009	25810
+2010	13063
+
+
+//所有订单中每年最畅销货品
+第一步：
+select c.theyear,b.itemid,sum(b.amount) as sumofamount from tblStock a,tblStockDetail b,tbldate c where a.ordernumber=b.ordernumber and a.dateid=c.dateid group by c.theyear,b.itemid; 
+
+第二步:
+select d.theyear,max(d.sumofamount) as maxofamount from (select c.theyear,b.itemid,sum(b.amount) as sumofamount from tblStock a,tblStockDetail b,tbldate c where a.ordernumber=b.ordernumber and a.dateid=c.dateid group by c.theyear,b.itemid) d group by d.theyear ;
+
+第三步：
+select distinct  e.theyear,e.itemid,f.maxofamount from (select c.theyear,b.itemid,sum(b.amount) as sumofamount from tblStock a,tblStockDetail b,tbldate c where a.ordernumber=b.ordernumber and a.dateid=c.dateid group by c.theyear,b.itemid) e , (select d.theyear,max(d.sumofamount) as maxofamount from (select c.theyear,b.itemid,sum(b.amount) as sumofamount from tblStock a,tblStockDetail b,tbldate c where a.ordernumber=b.ordernumber and a.dateid=c.dateid group by c.theyear,b.itemid) d group by d.theyear) f where e.theyear=f.theyear and e.sumofamount=f.maxofamount order by e.theyear;
+
+2004	JY424420810101	53374
+2005	24124118880102	56569
+2006	JY425468460101	113684
+2007	JY425468460101	70226
+2008	E2628204040101	97981
+2009	YL327439080102	30029
+2010	SQ429425090101	4494
+
+
+
+
+
+
+
+
+
+
+
+

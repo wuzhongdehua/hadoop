@@ -1,0 +1,4 @@
+# A Spark Worker will be started on each of the machines listed below.
+node1
+node2
+node3

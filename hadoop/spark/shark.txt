@@ -1,0 +1,51 @@
+//查询有多少行数据
+Select count(*) from SOGOUQ1;
+
+//显示前10行数据
+select * from SOGOUQ1 limit 10;
+
+//session查询次数排行榜
+select WEBSESSION,count(WEBSESSION) as cw from sogouQ1 group by WEBSESSION order by cw desc limit 10;
+
+//建立cache表
+create table sogouQ1_cached as select * from sogouq1;
+
+//搜索结果排名第1，但是点击次序排在第2的数据有多少?
+select count(*) from sogouQ1_cached where S_SEQ=1 and C_SEQ=2;
+
+//搜索用户点击的URL含baidu的数据有多少?
+select count(*) from sogouQ1_cached where WEBSITE like '%baidu%';
+
+//搜索结果排名第1，但是点击次序排在第2,URL含baidu的数据有多少?
+select count(*) from sogouQ1_cached where S_SEQ=1 and C_SEQ=2 and WEBSITE like '%baidu%';
+
+//session查询次数排行榜
+select WEBSESSION,count(WEBSESSION) as cw from sogouQ1_cached group by WEBSESSION order by cw desc limit 10;
+
+***************************************************************
+***************************************************************
+***************************************************************
+//切换数据库
+use saledata;
+
+//所有订单中总销售额
+//select sum(b.amount) from tblStock a,tblStockDetail b where a.ordernumber=b.ordernumber
+select sum(tblStockDetail.amount) from tblStock join tblStockDetail on tblStock.ordernumber=tblStockDetail.ordernumber;
+43129783
+68100782
+
+//select sum(b.amount) from tblStock a,tblStockDetail b,tbldate c where a.ordernumber=b.ordernumber and a.dateid=c.dateid;
+select sum(tblStockDetail.amount) from tblStock join tblStockDetail on tblStock.ordernumber=tblStockDetail.ordernumber join tbldate on tblstock.dateid=tbldate.dateid;
+43128080 shark
+68099079 hive
+
+
+
+
+
+
+
+
+
+
+

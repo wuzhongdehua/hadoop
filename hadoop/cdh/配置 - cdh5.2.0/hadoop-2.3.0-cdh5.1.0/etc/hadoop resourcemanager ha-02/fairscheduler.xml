@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<allocations>
+
+  <queue name="infrastructure">
+    <minResources>1024 mb, 1 vcores </minResources>
+    <maxResources>1536 mb, 2 vcores </maxResources>
+    <maxRunningApps>2</maxRunningApps>
+    <minSharePreemptionTimeout>3</minSharePreemptionTimeout>
+    <weight>1.0</weight>
+    <aclSubmitApps>root,yarn,search,hdfs</aclSubmitApps>
+  </queue>
+
+   <queue name="tool">
+      <minResources>1024 mb, 2 vcores</minResources>
+      <maxResources>1536 mb, 3 vcores</maxResources>
+   </queue>
+
+   <queue name="sentiment">
+      <minResources>1024 mb, 3 vcores</minResources>
+      <maxResources>1536 mb, 4 vcores</maxResources>
+   </queue>
+
+</allocations>
